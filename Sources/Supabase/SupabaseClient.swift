@@ -32,14 +32,7 @@ public class SupabaseClient {
   }
 
   /// Database client for Supabase.
-  public var database: PostgrestClient {
-    PostgrestClient(
-      url: databaseURL,
-      headers: defaultHeaders,
-      schema: schema,
-      apiClientDelegate: self
-    )
-  }
+  public var database: PostgrestClient
 
   /// Realtime client for Supabase
   public var realtime: RealtimeClient {
@@ -87,6 +80,17 @@ public class SupabaseClient {
       url: authURL,
       headers: defaultHeaders,
       localStorage: options.auth.storage
+    )
+
+    // Need a temporary client, as self is not fully initialised and there is no way to update the APIClientDelegate after creation.
+    database = PostgrestClient(url: URL(string: "https://example.com")!,
+                               schema: nil)
+
+    database = PostgrestClient(
+      url: databaseURL,
+      headers: defaultHeaders,
+      schema: schema,
+      apiClientDelegate: self
     )
   }
 
