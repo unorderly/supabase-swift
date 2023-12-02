@@ -1,6 +1,8 @@
 import _Helpers
 import Foundation
 
+import Logging
+
 struct SessionRefresher: Sendable {
   var refreshSession: @Sendable (_ refreshToken: String) async throws -> Session
 }
@@ -47,6 +49,8 @@ private actor _DefaultSessionManager {
       throw AuthError.sessionNotFound
     }
 
+      // persistentLogger.info("\(currentSession.expirationDate)")
+
     if currentSession.isValid || !shouldValidateExpiration {
       return currentSession.session
     }
@@ -63,6 +67,7 @@ private actor _DefaultSessionManager {
   }
 
   func update(_ session: Session) throws {
+      persistentLogger.info("Updating session")
     try storage.storeSession(StoredSession(session: session))
   }
 

@@ -1,6 +1,8 @@
 import _Helpers
 import Foundation
 
+import Logging
+
 #if canImport(FoundationNetworking)
   import FoundationNetworking
 #endif
@@ -1008,6 +1010,8 @@ public actor AuthClient {
       credentials.refreshToken = try await sessionManager.session(shouldValidateExpiration: false)
         .refreshToken
     }
+      
+      persistentLogger.info("Refresh called with: \(String(describing: refreshToken))")
 
     let session = try await api.execute(
       .init(
@@ -1018,6 +1022,8 @@ public actor AuthClient {
       )
     ).decoded(as: Session.self, decoder: configuration.decoder)
 
+      persistentLogger.info("Session obtained, next refreshToken: \(session.refreshToken)")
+      
     if session.user.phoneConfirmedAt != nil || session.user.emailConfirmedAt != nil
       || session
       .user.confirmedAt != nil
@@ -1029,9 +1035,14 @@ public actor AuthClient {
     return session
   }
 
+      do {
+          let session = try await session
+          eventEmitter.emit(.initialSession, session, id)
+      } catch {
+          persistentLogger.error("No initial session found: \(error.localizedDescription)")
+          eventEmitter.emit(.initialSession, nil, id)
+      }
   private func emitInitialSession(forToken token: ObservationToken) async {
-    let session = try? await session
-    eventEmitter.emit(.initialSession, session, token)
   }
 
   private func prepareForPKCE() -> (codeChallenge: String?, codeChallengeMethod: String?) {
