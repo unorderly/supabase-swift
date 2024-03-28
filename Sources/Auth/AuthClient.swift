@@ -1,7 +1,6 @@
 import _Helpers
 import Foundation
 
-import Logging
 
 #if canImport(UIKit)
 import UIKit
@@ -1015,9 +1014,8 @@ public actor AuthClient {
 #if canImport(UIKit) && !os(watchOS)
     var backgroundTaskId: UIBackgroundTaskIdentifier = .invalid
     backgroundTaskId = await UIApplication.shared.beginBackgroundTask(withName: "authRefreshSession") { [weak self] in
-      self?.persistentLogger.info("Refresh session background task killed.")
-      Task {
-        @MainActor [backgroundTaskId] in
+      self?.logger?.debug("Refresh session background task killed.")
+      Task { @MainActor [backgroundTaskId] in
         UIApplication.shared.endBackgroundTask(backgroundTaskId)
       }
       backgroundTaskId = .invalid
@@ -1035,7 +1033,7 @@ public actor AuthClient {
         .refreshToken
     }
       
-    persistentLogger.info("Refresh called with: \(String(describing: refreshToken))")
+    logger?.debug("Refresh called with: \(String(describing: refreshToken))")
 
     let session = try await api.execute(
       .init(
@@ -1046,8 +1044,8 @@ public actor AuthClient {
       )
     ).decoded(as: Session.self, decoder: configuration.decoder)
 
-    persistentLogger.info("Session obtained, next refreshToken: \(session.refreshToken)")
-      
+    logger?.debug("Session obtained, next refreshToken: \(session.refreshToken)")
+
     if session.user.phoneConfirmedAt != nil || session.user.emailConfirmedAt != nil
       || session
       .user.confirmedAt != nil
@@ -1056,20 +1054,20 @@ public actor AuthClient {
       eventEmitter.emit(.tokenRefreshed, session: session)
     }
 
-    persistentLogger.info("Session updated.")
-    
+    logger?.debug("Session updated.")
+
     return session
   }
 
-      do {
-          let session = try await session
-          eventEmitter.emit(.initialSession, session, id)
-      } catch {
-          persistentLogger.error("No initial session found: \(error.localizedDescription)")
-          eventEmitter.emit(.initialSession, nil, id)
-      }
-  private func emitInitialSession(forToken token: ObservationToken) async {
-  }
+    private func emitInitialSession(forToken token: ObservationToken) async {
+        do {
+            let session = try await session
+            eventEmitter.emit(.initialSession, session, token)
+        } catch {
+            logger?.error("No initial session found: \(error.localizedDescription)")
+            eventEmitter.emit(.initialSession, nil, token)
+        }
+    }
 
   private func prepareForPKCE() -> (codeChallenge: String?, codeChallengeMethod: String?) {
     guard configuration.flowType == .pkce else {

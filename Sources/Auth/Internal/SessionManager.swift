@@ -1,8 +1,6 @@
 import _Helpers
 import Foundation
 
-import Logging
-
 struct SessionRefresher: Sendable {
   var refreshSession: @Sendable (_ refreshToken: String) async throws -> Session
 }
@@ -40,6 +38,9 @@ private actor _DefaultSessionManager {
   @Dependency(\.sessionRefresher)
   private var sessionRefresher: SessionRefresher
 
+  @Dependency(\.logger)
+  private var logger: (any SupabaseLogger)?
+
   func session(shouldValidateExpiration: Bool) async throws -> Session {
     if let task {
       return try await task.value
@@ -67,7 +68,7 @@ private actor _DefaultSessionManager {
   }
 
   func update(_ session: Session) throws {
-      persistentLogger.info("Updating session")
+      logger?.debug("Updating session")
     try storage.storeSession(StoredSession(session: session))
   }
 

@@ -8,8 +8,6 @@
 import _Helpers
 import Foundation
 
-import Logging
-
 /// A locally stored ``Session``, it contains metadata such as `expirationDate`.
 struct StoredSession: Codable {
   var session: Session
@@ -28,7 +26,6 @@ struct StoredSession: Codable {
 }
 
 struct SessionStorage: Sendable {
-    static let persistentLogger = Logging.Logger(label: Bundle.main.bundleIdentifier!)
   var getSession: @Sendable () throws -> StoredSession?
   var storeSession: @Sendable (_ session: StoredSession) throws -> Void
   var deleteSession: @Sendable () throws -> Void
@@ -37,6 +34,7 @@ struct SessionStorage: Sendable {
 extension SessionStorage {
   static let live: Self = {
     @Dependency(\.configuration.localStorage) var localStorage: any AuthLocalStorage
+    @Dependency(\.logger) var logger: (any SupabaseLogger)?
 
     return Self(
       getSession: {
@@ -45,6 +43,7 @@ extension SessionStorage {
         }
       },
       storeSession: {
+        logger?.debug("Storing session")
         try localStorage.store(
           key: "supabase.session",
           value: AuthClient.Configuration.jsonEncoder.encode($0)
@@ -52,7 +51,7 @@ extension SessionStorage {
       },
       // When is delete session called?
       deleteSession: {
-          persistentLogger.info("Deleting session")
+          logger?.debug("Deleting session")
           return try localStorage.remove(key: "supabase.session")
       }
     )
