@@ -50,7 +50,6 @@ private actor _DefaultSessionManager {
       throw AuthError.sessionNotFound
     }
 
-      // persistentLogger.info("\(currentSession.expirationDate)")
 
     if currentSession.isValid || !shouldValidateExpiration {
       return currentSession.session
