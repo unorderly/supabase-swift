@@ -1,14 +1,16 @@
 import Foundation
 
-public enum AuthError: LocalizedError, Sendable {
+public enum AuthError: LocalizedError, Sendable, Equatable {
   case missingExpClaim
   case malformedJWT
   case sessionNotFound
   case api(APIError)
   case pkce(PKCEFailureReason)
   case invalidImplicitGrantFlowURL
+  case missingURL
+  case invalidRedirectScheme
 
-  public struct APIError: Error, Decodable, Sendable {
+  public struct APIError: Error, Decodable, Sendable, Equatable {
     /// A basic message describing the problem with the request. Usually missing if
     /// ``AuthError/APIError/error`` is present.
     public var msg: String?
@@ -43,14 +45,15 @@ public enum AuthError: LocalizedError, Sendable {
 
   public var errorDescription: String? {
     switch self {
-    case let .api(error): return error.errorDescription ?? error.msg ?? error.error
-    case .missingExpClaim: return "Missing expiration claim on access token."
-    case .malformedJWT: return "A malformed JWT received."
-    case .sessionNotFound: return "Unable to get a valid session."
-    case .pkce(.codeVerifierNotFound): return "A code verifier wasn't found in PKCE flow."
-    case .pkce(.invalidPKCEFlowURL): return "Not a valid PKCE flow url."
-    case .invalidImplicitGrantFlowURL:
-      return "Not a valid implicit grant flow url."
+    case let .api(error): error.errorDescription ?? error.msg ?? error.error
+    case .missingExpClaim: "Missing expiration claim on access token."
+    case .malformedJWT: "A malformed JWT received."
+    case .sessionNotFound: "Unable to get a valid session."
+    case .pkce(.codeVerifierNotFound): "A code verifier wasn't found in PKCE flow."
+    case .pkce(.invalidPKCEFlowURL): "Not a valid PKCE flow url."
+    case .invalidImplicitGrantFlowURL: "Not a valid implicit grant flow url."
+    case .missingURL: "Missing URL."
+    case .invalidRedirectScheme: "Invalid redirect scheme."
     }
   }
 }

@@ -413,8 +413,8 @@ public enum AuthResponse: Codable, Hashable, Sendable {
 
   public var user: User {
     switch self {
-    case let .session(session): return session.user
-    case let .user(user): return user
+    case let .session(session): session.user
+    case let .user(user): user
     }
   }
 
@@ -715,5 +715,10 @@ struct SignInWithSSORequest: Encodable {
 public struct SSOResponse: Codable, Hashable, Sendable {
   /// URL to open in a browser which will complete the sign-in flow by taking the user to the
   /// identity provider's authentication flow.
+  public let url: URL
+}
+
+public struct OAuthResponse: Codable, Hashable, Sendable {
+  public let provider: Provider
   public let url: URL
 }

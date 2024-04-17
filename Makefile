@@ -4,18 +4,50 @@ PLATFORM_MAC_CATALYST = macOS,variant=Mac Catalyst
 PLATFORM_TVOS = tvOS Simulator,name=Apple TV
 PLATFORM_WATCHOS = watchOS Simulator,name=Apple Watch Series 9 (41mm)
 
-test-all: test-library test-linux
+SCHEME ?= Supabase
+PLATFORM ?= iOS Simulator,name=iPhone 15 Pro
 
-test-library:
-	for platform in "$(PLATFORM_IOS)" "$(PLATFORM_MACOS)" "$(PLATFORM_MAC_CATALYST)" "$(PLATFORM_TVOS)" "$(PLATFORM_WATCHOS)"; do \
-		set -o pipefail && \
+export SECRETS
+define SECRETS
+enum DotEnv {
+  static let SUPABASE_URL = "$(SUPABASE_URL)"
+  static let SUPABASE_ANON_KEY = "$(SUPABASE_ANON_KEY)"
+}
+endef
+
+load-env:
+	@. ./scripts/load_env.sh
+
+dot-env:
+	@echo "$$SECRETS" > Tests/IntegrationTests/DotEnv.swift
+
+test-all: dot-env
+	set -o pipefail && \
 			xcodebuild test \
 				-skipMacroValidation \
 				-workspace supabase-swift.xcworkspace \
-				-scheme Supabase \
+				-scheme "$(SCHEME)" \
+				-testPlan AllTests \
+				-destination platform="$(PLATFORM)" | xcpretty
+
+test-library: dot-env
+	set -o pipefail && \
+			xcodebuild test \
+				-skipMacroValidation \
+				-workspace supabase-swift.xcworkspace \
+				-scheme "$(SCHEME)" \
 				-derivedDataPath /tmp/derived-data \
-				-destination platform="$$platform" | xcpretty; \
-	done;
+				-destination platform="$(PLATFORM)" | xcpretty
+
+test-integration: dot-env
+	set -o pipefail && \
+		xcodebuild test \
+			-skipMacroValidation \
+			-workspace supabase-swift.xcworkspace \
+			-scheme Supabase \
+			-testPlan IntegrationTests \
+			-destination platform="$(PLATFORM_IOS)" | xcpretty
+
 
 test-linux:
 	docker build -t supabase-swift .

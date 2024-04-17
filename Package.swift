@@ -70,6 +70,18 @@ let package = Package(
         .product(name: "ConcurrencyExtras", package: "swift-concurrency-extras"),
       ]
     ),
+    .testTarget(
+      name: "IntegrationTests",
+      dependencies: [
+        .product(name: "CustomDump", package: "swift-custom-dump"),
+        .product(name: "XCTestDynamicOverlay", package: "xctest-dynamic-overlay"),
+        "_Helpers",
+        "Auth",
+        "TestHelpers",
+        "PostgREST",
+        "Realtime",
+      ]
+    ),
     .target(
       name: "Auth",
       dependencies: goTrueDependencies
@@ -77,11 +89,12 @@ let package = Package(
     .testTarget(
       name: "AuthTests",
       dependencies: [
-        "Auth",
-        "_Helpers",
-        "TestHelpers",
+        .product(name: "CustomDump", package: "swift-custom-dump"),
         .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
         .product(name: "XCTestDynamicOverlay", package: "xctest-dynamic-overlay"),
+        "_Helpers",
+        "Auth",
+        "TestHelpers",
       ],
       exclude: [
         "__Snapshots__",
@@ -104,7 +117,6 @@ let package = Package(
       ],
       exclude: ["__Snapshots__"]
     ),
-    .testTarget(name: "PostgRESTIntegrationTests", dependencies: ["PostgREST"]),
     .target(
       name: "Realtime",
       dependencies: [
@@ -116,6 +128,7 @@ let package = Package(
       name: "RealtimeTests",
       dependencies: [
         "Realtime",
+        "PostgREST",
         "TestHelpers",
         .product(name: "CustomDump", package: "swift-custom-dump"),
       ]
@@ -141,7 +154,13 @@ let package = Package(
       ]
     ),
     .testTarget(name: "SupabaseTests", dependencies: ["Supabase"]),
-    .target(name: "TestHelpers"),
+    .target(
+      name: "TestHelpers",
+      dependencies: [
+        .product(name: "ConcurrencyExtras", package: "swift-concurrency-extras"),
+        "Auth",
+      ]
+    ),
   ]
 )
 

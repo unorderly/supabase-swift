@@ -1,7 +1,7 @@
 {
   "configurations" : [
     {
-      "id" : "5F632059-FF26-463E-B598-A1902519AB3F",
+      "id" : "45505B3F-281D-4398-B92C-A63746C756E0",
       "name" : "Configuration 1",
       "options" : {
 
@@ -15,57 +15,8 @@
     {
       "target" : {
         "containerPath" : "container:",
-        "identifier" : "FunctionsTests",
-        "name" : "FunctionsTests"
-      }
-    },
-    {
-      "target" : {
-        "containerPath" : "container:",
-        "identifier" : "PostgRESTIntegrationTests",
-        "name" : "PostgRESTIntegrationTests"
-      }
-    },
-    {
-      "target" : {
-        "containerPath" : "container:",
-        "identifier" : "PostgRESTTests",
-        "name" : "PostgRESTTests"
-      }
-    },
-    {
-      "target" : {
-        "containerPath" : "container:",
-        "identifier" : "RealtimeTests",
-        "name" : "RealtimeTests"
-      }
-    },
-    {
-      "target" : {
-        "containerPath" : "container:",
-        "identifier" : "StorageTests",
-        "name" : "StorageTests"
-      }
-    },
-    {
-      "target" : {
-        "containerPath" : "container:",
         "identifier" : "SupabaseTests",
         "name" : "SupabaseTests"
-      }
-    },
-    {
-      "target" : {
-        "containerPath" : "container:",
-        "identifier" : "AuthTests",
-        "name" : "AuthTests"
-      }
-    },
-    {
-      "target" : {
-        "containerPath" : "container:",
-        "identifier" : "_HelpersTests",
-        "name" : "_HelpersTests"
       }
     }
   ],

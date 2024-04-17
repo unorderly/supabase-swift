@@ -15,6 +15,8 @@ import Foundation
   let NSEC_PER_SEC: UInt64 = 1000000000
 #endif
 
+public typealias JSONObject = _Helpers.JSONObject
+
 public actor RealtimeClientV2 {
   public struct Configuration: Sendable {
     var url: URL
@@ -223,6 +225,12 @@ public actor RealtimeClientV2 {
     if subscriptions.isEmpty {
       config.logger?.debug("No more subscribed channel in socket")
       disconnect()
+    }
+  }
+
+  public func removeAllChannels() async {
+    for channel in subscriptions.values {
+      await removeChannel(channel)
     }
   }
 
