@@ -33,8 +33,11 @@ public class StorageApi: @unchecked Sendable {
 
     let response = try await http.rawFetch(request)
     guard (200 ..< 300).contains(response.statusCode) else {
-      let error = try configuration.decoder.decode(StorageError.self, from: response.data)
-      throw error
+        if let error = try? configuration.decoder.decode(StorageError.self, from: response.data) {
+            throw error
+        }
+
+        throw HTTPError(response: response.response, data: response.data)
     }
 
     return response
