@@ -42,9 +42,6 @@ private actor _DefaultSessionManager {
   private var logger: (any SupabaseLogger)?
 
   func session(shouldValidateExpiration: Bool) async throws -> Session {
-    if let task {
-      return try await task.value
-    }
 
     guard let currentSession = try storage.getSession() else {
       throw AuthError.sessionNotFound
@@ -53,6 +50,10 @@ private actor _DefaultSessionManager {
 
     if currentSession.isValid || !shouldValidateExpiration {
       return currentSession.session
+    }
+
+    if let task {
+      return try await task.value
     }
 
     task = Task {
