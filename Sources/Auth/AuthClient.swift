@@ -96,6 +96,16 @@ public final class AuthClient: @unchecked Sendable {
     }
   }
 
+  /// Returns the session.
+  ///
+  /// - Parameters:
+  ///    - shouldValidateExpiration: If the session should be refresh, if necessary.
+  ///
+  /// If no session can be found, a ``AuthError/sessionNotFound`` error is thrown.
+  public func session(shouldValidateExpiration: Bool = true) async throws -> Session {
+      try await sessionManager.session(shouldValidateExpiration: shouldValidateExpiration)
+  }
+
   /// Namespace for accessing multi-factor authentication API.
   public let mfa: AuthMFA
 
