@@ -854,6 +854,13 @@ public final class AuthClient: @unchecked Sendable {
     return session
   }
 
+    
+  /// Resets the session without sending a singout request to the server.
+  public func resetSession() async {
+      await sessionManager.remove()
+      eventEmitter.emit(.signedOut, session: nil)
+  }
+
   /// Signs out the current user, if there is a logged in user.
   ///
   /// If using ``SignOutScope/others`` scope, no ``AuthChangeEvent/signedOut`` event is fired.
@@ -883,8 +890,7 @@ public final class AuthClient: @unchecked Sendable {
     }
 
     if scope != .others {
-      await sessionManager.remove()
-      eventEmitter.emit(.signedOut, session: nil)
+      await self.resetSession()
     }
   }
 
