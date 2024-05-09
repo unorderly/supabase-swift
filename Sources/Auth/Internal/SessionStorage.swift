@@ -14,7 +14,7 @@ struct StoredSession: Codable {
   var expirationDate: Date
 
   var isValid: Bool {
-    expirationDate > Date().addingTimeInterval(60)
+    expirationDate.timeIntervalSince(Date()) > 60
   }
 
   init(session: Session, expirationDate: Date? = nil) {
@@ -25,35 +25,21 @@ struct StoredSession: Codable {
   }
 }
 
-struct SessionStorage: Sendable {
-  var getSession: @Sendable () throws -> StoredSession?
-  var storeSession: @Sendable (_ session: StoredSession) throws -> Void
-  var deleteSession: @Sendable () throws -> Void
-}
+extension AuthLocalStorage {
+  func getSession() throws -> StoredSession? {
+    try retrieve(key: "supabase.session").flatMap {
+      try AuthClient.Configuration.jsonDecoder.decode(StoredSession.self, from: $0)
+    }
+  }
 
-extension SessionStorage {
-  static let live: Self = {
-    @Dependency(\.configuration.localStorage) var localStorage: any AuthLocalStorage
-    @Dependency(\.logger) var logger: (any SupabaseLogger)?
-
-    return Self(
-      getSession: {
-        try localStorage.retrieve(key: "supabase.session").flatMap {
-          try AuthClient.Configuration.jsonDecoder.decode(StoredSession.self, from: $0)
-        }
-      },
-      storeSession: {
-        logger?.debug("Storing session")
-        try localStorage.store(
-          key: "supabase.session",
-          value: AuthClient.Configuration.jsonEncoder.encode($0)
-        )
-      },
-      // When is delete session called?
-      deleteSession: {
-          logger?.debug("Deleting session")
-          return try localStorage.remove(key: "supabase.session")
-      }
+  func storeSession(_ session: StoredSession) throws {
+    try store(
+      key: "supabase.session",
+      value: AuthClient.Configuration.jsonEncoder.encode(session)
     )
-  }()
+  }
+
+  func deleteSession() throws {
+    try remove(key: "supabase.session")
+  }
 }

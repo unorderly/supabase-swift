@@ -8,12 +8,10 @@
 import _Helpers
 import Foundation
 
-public actor AuthAdmin {
-  @Dependency(\.configuration)
-  private var configuration: AuthClient.Configuration
-
-  @Dependency(\.api)
-  private var api: APIClient
+public struct AuthAdmin: Sendable {
+  var configuration: AuthClient.Configuration { Current.configuration }
+  var api: APIClient { Current.api }
+  var encoder: JSONEncoder { Current.encoder }
 
   /// Delete a user. Requires `service_role` key.
   /// - Parameter id: The id of the user you want to delete.
@@ -24,10 +22,12 @@ public actor AuthAdmin {
   /// - Warning: Never expose your `service_role` key on the client.
   public func deleteUser(id: String, shouldSoftDelete: Bool = false) async throws {
     _ = try await api.execute(
-      Request(
-        path: "/admin/users/\(id)",
+      HTTPRequest(
+        url: configuration.url.appendingPathComponent("admin/users/\(id)"),
         method: .delete,
-        body: configuration.encoder.encode(DeleteUserRequest(shouldSoftDelete: shouldSoftDelete))
+        body: encoder.encode(
+          DeleteUserRequest(shouldSoftDelete: shouldSoftDelete)
+        )
       )
     )
   }

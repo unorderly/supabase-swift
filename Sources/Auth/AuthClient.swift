@@ -1,4 +1,5 @@
 import _Helpers
+import ConcurrencyExtras
 import Foundation
 
 #if canImport(UIKit)
@@ -13,81 +14,13 @@ import UIKit
   import FoundationNetworking
 #endif
 
-public final class AuthClient: @unchecked Sendable {
-  /// FetchHandler is a type alias for asynchronous network request handling.
-  public typealias FetchHandler = @Sendable (
-    _ request: URLRequest
-  ) async throws -> (Data, URLResponse)
-
-  /// Configuration struct represents the client configuration.
-  public struct Configuration: Sendable {
-    public let url: URL
-    public var headers: [String: String]
-    public let flowType: AuthFlowType
-    public let redirectToURL: URL?
-    public let localStorage: any AuthLocalStorage
-    public let logger: (any SupabaseLogger)?
-    public let encoder: JSONEncoder
-    public let decoder: JSONDecoder
-    public let fetch: FetchHandler
-
-    /// Initializes a AuthClient Configuration with optional parameters.
-    ///
-    /// - Parameters:
-    ///   - url: The base URL of the Auth server.
-    ///   - headers: Custom headers to be included in requests.
-    ///   - flowType: The authentication flow type.
-    ///   - redirectToURL: Default URL to be used for redirect on the flows that requires it.
-    ///   - localStorage: The storage mechanism for local data.
-    ///   - logger: The logger to use.
-    ///   - encoder: The JSON encoder to use for encoding requests.
-    ///   - decoder: The JSON decoder to use for decoding responses.
-    ///   - fetch: The asynchronous fetch handler for network requests.
-    public init(
-      url: URL,
-      headers: [String: String] = [:],
-      flowType: AuthFlowType = Configuration.defaultFlowType,
-      redirectToURL: URL? = nil,
-      localStorage: any AuthLocalStorage,
-      logger: (any SupabaseLogger)? = nil,
-      encoder: JSONEncoder = AuthClient.Configuration.jsonEncoder,
-      decoder: JSONDecoder = AuthClient.Configuration.jsonDecoder,
-      fetch: @escaping FetchHandler = { try await URLSession.shared.data(for: $0) }
-    ) {
-      let headers = headers.merging(Configuration.defaultHeaders) { l, _ in l }
-
-      self.url = url
-      self.headers = headers
-      self.flowType = flowType
-      self.redirectToURL = redirectToURL
-      self.localStorage = localStorage
-      self.logger = logger
-      self.encoder = encoder
-      self.decoder = decoder
-      self.fetch = fetch
-    }
-  }
-
-  @Dependency(\.configuration)
-  private var configuration: Configuration
-
-  @Dependency(\.api)
-  private var api: APIClient
-
-  @Dependency(\.eventEmitter)
-  private var eventEmitter: EventEmitter
-
-  @Dependency(\.sessionManager)
-  private var sessionManager: SessionManager
-
-  @Dependency(\.codeVerifierStorage)
-  private var codeVerifierStorage: CodeVerifierStorage
-
-  @Dependency(\.currentDate)
-  private var currentDate: @Sendable () -> Date
-
-  @Dependency(\.logger)
-  private var logger: (any SupabaseLogger)?
+public final class AuthClient: Sendable {
+  private var api: APIClient { Current.api }
+  private var configuration: AuthClient.Configuration { Current.configuration }
+  private var codeVerifierStorage: CodeVerifierStorage { Current.codeVerifierStorage }
+  private var date: @Sendable () -> Date { Current.date }
+  private var sessionManager: SessionManager { Current.sessionManager }
+  private var eventEmitter: AuthStateChangeEventEmitter { Current.eventEmitter }
 
   /// Returns the session, refreshing it if necessary.
   ///
@@ -109,101 +42,23 @@ public final class AuthClient: @unchecked Sendable {
   }
 
   /// Namespace for accessing multi-factor authentication API.
-  public let mfa: AuthMFA
-
+  public let mfa = AuthMFA()
   /// Namespace for the GoTrue admin methods.
   /// - Warning: This methods requires `service_role` key, be careful to never expose `service_role`
   /// key in the client.
-  public let admin: AuthAdmin
-
-  /// Initializes a AuthClient with optional parameters.
-  ///
-  /// - Parameters:
-  ///   - url: The base URL of the Auth server.
-  ///   - headers: Custom headers to be included in requests.
-  ///   - flowType: The authentication flow type..
-  ///   - redirectToURL: Default URL to be used for redirect on the flows that requires it.
-  ///   - localStorage: The storage mechanism for local data..
-  ///   - logger: The logger to use.
-  ///   - encoder: The JSON encoder to use for encoding requests.
-  ///   - decoder: The JSON decoder to use for decoding responses.
-  ///   - fetch: The asynchronous fetch handler for network requests.
-  public convenience init(
-    url: URL,
-    headers: [String: String] = [:],
-    flowType: AuthFlowType = AuthClient.Configuration.defaultFlowType,
-    redirectToURL: URL? = nil,
-    localStorage: any AuthLocalStorage,
-    logger: (any SupabaseLogger)? = nil,
-    encoder: JSONEncoder = AuthClient.Configuration.jsonEncoder,
-    decoder: JSONDecoder = AuthClient.Configuration.jsonDecoder,
-    fetch: @escaping FetchHandler = { try await URLSession.shared.data(for: $0) }
-  ) {
-    self.init(
-      configuration: Configuration(
-        url: url,
-        headers: headers,
-        flowType: flowType,
-        redirectToURL: redirectToURL,
-        localStorage: localStorage,
-        logger: logger,
-        encoder: encoder,
-        decoder: decoder,
-        fetch: fetch
-      )
-    )
-  }
+  public let admin = AuthAdmin()
 
   /// Initializes a AuthClient with a specific configuration.
   ///
   /// - Parameters:
   ///   - configuration: The client configuration.
-  public convenience init(configuration: Configuration) {
-    let api = APIClient.live(
-      configuration: configuration,
-      http: HTTPClient(
-        logger: configuration.logger,
-        fetchHandler: configuration.fetch
-      )
-    )
-
-    self.init(
-      configuration: configuration,
-      sessionManager: .live,
-      codeVerifierStorage: .live,
-      api: api,
-      eventEmitter: .live,
-      sessionStorage: .live,
-      logger: configuration.logger
-    )
-  }
-
-  /// This internal initializer is here only for easy injecting mock instances when testing.
-  init(
-    configuration: Configuration,
-    sessionManager: SessionManager,
-    codeVerifierStorage: CodeVerifierStorage,
-    api: APIClient,
-    eventEmitter: EventEmitter,
-    sessionStorage: SessionStorage,
-    logger: (any SupabaseLogger)?
-  ) {
-    mfa = AuthMFA()
-    admin = AuthAdmin()
-
+  public init(configuration: Configuration) {
     Current = Dependencies(
       configuration: configuration,
-      sessionManager: sessionManager,
-      api: api,
-      eventEmitter: eventEmitter,
-      sessionStorage: sessionStorage,
-      sessionRefresher: SessionRefresher(
-        refreshSession: { [weak self] in
-          try await self?.refreshSession(refreshToken: $0) ?? .empty
-        }
-      ),
-      codeVerifierStorage: codeVerifierStorage,
-      logger: logger
+      sessionRefresher: SessionRefresher { [weak self] in
+        try await self?.refreshSession(refreshToken: $0) ?? .empty
+      },
+      http: HTTPClient(configuration: configuration)
     )
   }
 
@@ -218,7 +73,7 @@ public final class AuthClient: @unchecked Sendable {
   public func onAuthStateChange(
     _ listener: @escaping AuthStateChangeListener
   ) async -> some AuthStateChangeListenerRegistration {
-    let token = eventEmitter.attachListener(listener)
+    let token = eventEmitter.attach(listener)
     await emitInitialSession(forToken: token)
     return token
   }
@@ -265,7 +120,7 @@ public final class AuthClient: @unchecked Sendable {
 
     return try await _signUp(
       request: .init(
-        path: "/signup",
+        url: configuration.url.appendingPathComponent("signup"),
         method: .post,
         query: [
           (redirectTo ?? configuration.redirectToURL).map { URLQueryItem(
@@ -301,7 +156,7 @@ public final class AuthClient: @unchecked Sendable {
   ) async throws -> AuthResponse {
     try await _signUp(
       request: .init(
-        path: "/signup",
+        url: configuration.url.appendingPathComponent("signup"),
         method: .post,
         body: configuration.encoder.encode(
           SignUpRequest(
@@ -315,7 +170,7 @@ public final class AuthClient: @unchecked Sendable {
     )
   }
 
-  private func _signUp(request: Request) async throws -> AuthResponse {
+  private func _signUp(request: HTTPRequest) async throws -> AuthResponse {
     await sessionManager.remove()
     let response = try await api.execute(request).decoded(
       as: AuthResponse.self,
@@ -339,7 +194,7 @@ public final class AuthClient: @unchecked Sendable {
   ) async throws -> Session {
     try await _signIn(
       request: .init(
-        path: "/token",
+        url: configuration.url.appendingPathComponent("token"),
         method: .post,
         query: [URLQueryItem(name: "grant_type", value: "password")],
         body: configuration.encoder.encode(
@@ -362,7 +217,7 @@ public final class AuthClient: @unchecked Sendable {
   ) async throws -> Session {
     try await _signIn(
       request: .init(
-        path: "/token",
+        url: configuration.url.appendingPathComponent("token"),
         method: .post,
         query: [URLQueryItem(name: "grant_type", value: "password")],
         body: configuration.encoder.encode(
@@ -382,7 +237,7 @@ public final class AuthClient: @unchecked Sendable {
   public func signInWithIdToken(credentials: OpenIDConnectCredentials) async throws -> Session {
     try await _signIn(
       request: .init(
-        path: "/token",
+        url: configuration.url.appendingPathComponent("token"),
         method: .post,
         query: [URLQueryItem(name: "grant_type", value: "id_token")],
         body: configuration.encoder.encode(credentials)
@@ -402,8 +257,8 @@ public final class AuthClient: @unchecked Sendable {
     captchaToken: String? = nil
   ) async throws -> Session {
     try await _signIn(
-      request: Request(
-        path: "/signup",
+      request: HTTPRequest(
+        url: configuration.url.appendingPathComponent("signup"),
         method: .post,
         body: configuration.encoder.encode(
           SignUpRequest(
@@ -415,7 +270,7 @@ public final class AuthClient: @unchecked Sendable {
     )
   }
 
-  private func _signIn(request: Request) async throws -> Session {
+  private func _signIn(request: HTTPRequest) async throws -> Session {
     await sessionManager.remove()
 
     let session = try await api.execute(request).decoded(
@@ -453,7 +308,7 @@ public final class AuthClient: @unchecked Sendable {
 
     _ = try await api.execute(
       .init(
-        path: "/otp",
+        url: configuration.url.appendingPathComponent("otp"),
         method: .post,
         query: [
           (redirectTo ?? configuration.redirectToURL).map { URLQueryItem(
@@ -496,7 +351,7 @@ public final class AuthClient: @unchecked Sendable {
     await sessionManager.remove()
     _ = try await api.execute(
       .init(
-        path: "/otp",
+        url: configuration.url.appendingPathComponent("otp"),
         method: .post,
         body: configuration.encoder.encode(
           OTPParams(
@@ -528,8 +383,8 @@ public final class AuthClient: @unchecked Sendable {
     let (codeChallenge, codeChallengeMethod) = prepareForPKCE()
 
     return try await api.execute(
-      Request(
-        path: "/sso",
+      HTTPRequest(
+        url: configuration.url.appendingPathComponent("sso"),
         method: .post,
         body: configuration.encoder.encode(
           SignInWithSSORequest(
@@ -563,8 +418,8 @@ public final class AuthClient: @unchecked Sendable {
     let (codeChallenge, codeChallengeMethod) = prepareForPKCE()
 
     return try await api.execute(
-      Request(
-        path: "/sso",
+      HTTPRequest(
+        url: configuration.url.appendingPathComponent("sso"),
         method: .post,
         body: configuration.encoder.encode(
           SignInWithSSORequest(
@@ -589,7 +444,7 @@ public final class AuthClient: @unchecked Sendable {
 
     let session: Session = try await api.execute(
       .init(
-        path: "/token",
+        url: configuration.url.appendingPathComponent("token"),
         method: .post,
         query: [URLQueryItem(name: "grant_type", value: "pkce")],
         body: configuration.encoder.encode(
@@ -755,7 +610,7 @@ public final class AuthClient: @unchecked Sendable {
     let params = extractParams(from: url)
 
     if isPKCEFlow(url: url) {
-      guard let code = params.first(where: { $0.name == "code" })?.value else {
+      guard let code = params["code"] else {
         throw AuthError.pkce(.codeVerifierNotFound)
       }
 
@@ -763,28 +618,26 @@ public final class AuthClient: @unchecked Sendable {
       return session
     }
 
-    if let errorDescription = params.first(where: { $0.name == "error_description" })?.value {
+    if let errorDescription = params["error_description"] {
       throw AuthError.api(.init(errorDescription: errorDescription))
     }
 
     guard
-      let accessToken = params.first(where: { $0.name == "access_token" })?.value,
-      let expiresIn = params.first(where: { $0.name == "expires_in" }).map(\.value)
-      .flatMap(TimeInterval.init),
-      let refreshToken = params.first(where: { $0.name == "refresh_token" })?.value,
-      let tokenType = params.first(where: { $0.name == "token_type" })?.value
+      let accessToken = params["access_token"],
+      let expiresIn = params["expires_in"].flatMap(TimeInterval.init),
+      let refreshToken = params["refresh_token"],
+      let tokenType = params["token_type"]
     else {
       throw URLError(.badURL)
     }
 
-    let expiresAt = params.first(where: { $0.name == "expires_at" }).map(\.value)
-      .flatMap(TimeInterval.init)
-    let providerToken = params.first(where: { $0.name == "provider_token" })?.value
-    let providerRefreshToken = params.first(where: { $0.name == "provider_refresh_token" })?.value
+    let expiresAt = params["expires_at"].flatMap(TimeInterval.init)
+    let providerToken = params["provider_token"]
+    let providerRefreshToken = params["provider_refresh_token"]
 
     let user = try await api.execute(
       .init(
-        path: "/user",
+        url: configuration.url.appendingPathComponent("user"),
         method: .get,
         headers: ["Authorization": "\(tokenType) \(accessToken)"]
       )
@@ -796,7 +649,7 @@ public final class AuthClient: @unchecked Sendable {
       accessToken: accessToken,
       tokenType: tokenType,
       expiresIn: expiresIn,
-      expiresAt: expiresAt ?? currentDate().addingTimeInterval(expiresIn).timeIntervalSince1970,
+      expiresAt: expiresAt ?? date().addingTimeInterval(expiresIn).timeIntervalSince1970,
       refreshToken: refreshToken,
       user: user
     )
@@ -804,7 +657,7 @@ public final class AuthClient: @unchecked Sendable {
     try await sessionManager.update(session)
     eventEmitter.emit(.signedIn, session: session)
 
-    if let type = params.first(where: { $0.name == "type" })?.value, type == "recovery" {
+    if let type = params["type"], type == "recovery" {
       eventEmitter.emit(.passwordRecovery, session: session)
     }
 
@@ -822,7 +675,7 @@ public final class AuthClient: @unchecked Sendable {
   /// - Returns: A new valid session.
   @discardableResult
   public func setSession(accessToken: String, refreshToken: String) async throws -> Session {
-    let now = currentDate()
+    let now = date()
     var expiresAt = now
     var hasExpired = true
     var session: Session
@@ -872,15 +725,15 @@ public final class AuthClient: @unchecked Sendable {
 
       try await api.authorizedExecute(
         .init(
-          path: "/logout",
+          url: configuration.url.appendingPathComponent("logout"),
           method: .post,
           query: [URLQueryItem(name: "scope", value: scope.rawValue)]
         )
       )
     } catch {
       // ignore 404s since user might not exist anymore
-      // ignore 401s since an invalid or expired JWT should sign out the current session
-      let ignoredCodes = Set([404, 401])
+      // ignore 401s, and 403s since an invalid or expired JWT should sign out the current session.
+      let ignoredCodes = Set([404, 403, 401])
 
       if case let AuthError.api(apiError) = error, let code = apiError.code,
          !ignoredCodes.contains(code)
@@ -905,7 +758,7 @@ public final class AuthClient: @unchecked Sendable {
   ) async throws -> AuthResponse {
     try await _verifyOTP(
       request: .init(
-        path: "/verify",
+        url: configuration.url.appendingPathComponent("verify"),
         method: .post,
         query: [
           (redirectTo ?? configuration.redirectToURL).map { URLQueryItem(
@@ -938,7 +791,7 @@ public final class AuthClient: @unchecked Sendable {
   ) async throws -> AuthResponse {
     try await _verifyOTP(
       request: .init(
-        path: "/verify",
+        url: configuration.url.appendingPathComponent("verify"),
         method: .post,
         body: configuration.encoder.encode(
           VerifyOTPParams.mobile(
@@ -956,7 +809,7 @@ public final class AuthClient: @unchecked Sendable {
   }
 
   private func _verifyOTP(
-    request: Request,
+    request: HTTPRequest,
     shouldRemoveSession: Bool
   ) async throws -> AuthResponse {
     if shouldRemoveSession {
@@ -991,8 +844,8 @@ public final class AuthClient: @unchecked Sendable {
     }
 
     _ = try await api.execute(
-      Request(
-        path: "/resend",
+      HTTPRequest(
+        url: configuration.url.appendingPathComponent("resend"),
         method: .post,
         query: [
           (emailRedirectTo ?? configuration.redirectToURL).map { URLQueryItem(
@@ -1028,8 +881,8 @@ public final class AuthClient: @unchecked Sendable {
     }
 
     return try await api.execute(
-      Request(
-        path: "/resend",
+      HTTPRequest(
+        url: configuration.url.appendingPathComponent("resend"),
         method: .post,
         body: configuration.encoder.encode(
           ResendMobileParams(
@@ -1046,7 +899,10 @@ public final class AuthClient: @unchecked Sendable {
   /// Sends a re-authentication OTP to the user's email or phone number.
   public func reauthenticate() async throws {
     try await api.authorizedExecute(
-      Request(path: "/reauthenticate", method: .get)
+      HTTPRequest(
+        url: configuration.url.appendingPathComponent("reauthenticate"),
+        method: .get
+      )
     )
   }
 
@@ -1057,7 +913,7 @@ public final class AuthClient: @unchecked Sendable {
   /// Should be used only when you require the most current user data. For faster results,
   /// session.user is recommended.
   public func user(jwt: String? = nil) async throws -> User {
-    var request = Request(path: "/user", method: .get)
+    var request = HTTPRequest(url: configuration.url.appendingPathComponent("user"), method: .get)
 
     if let jwt {
       request.headers["Authorization"] = "Bearer \(jwt)"
@@ -1080,7 +936,11 @@ public final class AuthClient: @unchecked Sendable {
 
     var session = try await sessionManager.session()
     let updatedUser = try await api.authorizedExecute(
-      .init(path: "/user", method: .put, body: configuration.encoder.encode(user))
+      .init(
+        url: configuration.url.appendingPathComponent("user"),
+        method: .put,
+        body: configuration.encoder.encode(user)
+      )
     ).decoded(as: User.self, decoder: configuration.decoder)
     session.user = updatedUser
     try await sessionManager.update(session)
@@ -1122,7 +982,7 @@ public final class AuthClient: @unchecked Sendable {
     }
 
     let response = try await api.authorizedExecute(
-      Request(
+      HTTPRequest(
         url: url,
         method: .get
       )
@@ -1136,8 +996,8 @@ public final class AuthClient: @unchecked Sendable {
   /// with that identity once it's unlinked.
   public func unlinkIdentity(_ identity: UserIdentity) async throws {
     try await api.authorizedExecute(
-      Request(
-        path: "/user/identities/\(identity.identityId)",
+      HTTPRequest(
+        url: configuration.url.appendingPathComponent("user/identities/\(identity.identityId)"),
         method: .delete
       )
     )
@@ -1153,7 +1013,7 @@ public final class AuthClient: @unchecked Sendable {
 
     _ = try await api.execute(
       .init(
-        path: "/recover",
+        url: configuration.url.appendingPathComponent("recover"),
         method: .post,
         query: [
           (redirectTo ?? configuration.redirectToURL).map { URLQueryItem(
@@ -1208,7 +1068,7 @@ public final class AuthClient: @unchecked Sendable {
 
     let session = try await api.execute(
       .init(
-        path: "/token",
+        url: configuration.url.appendingPathComponent("token"),
         method: .post,
         query: [URLQueryItem(name: "grant_type", value: "refresh_token")],
         body: configuration.encoder.encode(credentials)
@@ -1230,15 +1090,10 @@ public final class AuthClient: @unchecked Sendable {
     return session
   }
 
-    private func emitInitialSession(forToken token: ObservationToken) async {
-        do {
-            let session = try await session
-            eventEmitter.emit(.initialSession, session, token)
-        } catch {
-            logger?.error("No initial session found: \(error.localizedDescription)")
-            eventEmitter.emit(.initialSession, nil, token)
-        }
-    }
+  private func emitInitialSession(forToken token: ObservationToken) async {
+    let session = try? await session
+    eventEmitter.emit(.initialSession, session: session, token: token)
+  }
 
   private func prepareForPKCE() -> (codeChallenge: String?, codeChallengeMethod: String?) {
     guard configuration.flowType == .pkce else {
@@ -1256,15 +1111,13 @@ public final class AuthClient: @unchecked Sendable {
 
   private func isImplicitGrantFlow(url: URL) -> Bool {
     let fragments = extractParams(from: url)
-    return fragments.contains {
-      $0.name == "access_token" || $0.name == "error_description"
-    }
+    return fragments["access_token"] != nil || fragments["error_description"] != nil
   }
 
   private func isPKCEFlow(url: URL) -> Bool {
     let fragments = extractParams(from: url)
     let currentCodeVerifier = codeVerifierStorage.get()
-    return fragments.contains(where: { $0.name == "code" }) && currentCodeVerifier != nil
+    return fragments["code"] != nil && currentCodeVerifier != nil
   }
 
   private func getURLForProvider(

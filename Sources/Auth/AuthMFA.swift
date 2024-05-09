@@ -2,18 +2,13 @@ import _Helpers
 import Foundation
 
 /// Contains the full multi-factor authentication API.
-public actor AuthMFA {
-  @Dependency(\.api)
-  private var api: APIClient
-
-  @Dependency(\.configuration)
-  private var configuration: AuthClient.Configuration
-
-  @Dependency(\.sessionManager)
-  private var sessionManager: SessionManager
-
-  @Dependency(\.eventEmitter)
-  private var eventEmitter: EventEmitter
+public struct AuthMFA: Sendable {
+  var configuration: AuthClient.Configuration { Current.configuration }
+  var api: APIClient { Current.api }
+  var encoder: JSONEncoder { Current.encoder }
+  var decoder: JSONDecoder { Current.decoder }
+  var sessionManager: SessionManager { Current.sessionManager }
+  var eventEmitter: AuthStateChangeEventEmitter { Current.eventEmitter }
 
   /// Starts the enrollment process for a new Multi-Factor Authentication (MFA) factor. This method
   /// creates a new `unverified` factor.
@@ -28,12 +23,13 @@ public actor AuthMFA {
   /// - Returns: An authentication response after enrolling the factor.
   public func enroll(params: MFAEnrollParams) async throws -> AuthMFAEnrollResponse {
     try await api.authorizedExecute(
-      Request(
-        path: "/factors", method: .post,
-        body: configuration.encoder.encode(params)
+      HTTPRequest(
+        url: configuration.url.appendingPathComponent("factors"),
+        method: .post,
+        body: encoder.encode(params)
       )
     )
-    .decoded(decoder: configuration.decoder)
+    .decoded(decoder: decoder)
   }
 
   /// Prepares a challenge used to verify that a user has access to a MFA factor.
@@ -42,9 +38,12 @@ public actor AuthMFA {
   /// - Returns: An authentication response with the challenge information.
   public func challenge(params: MFAChallengeParams) async throws -> AuthMFAChallengeResponse {
     try await api.authorizedExecute(
-      Request(path: "/factors/\(params.factorId)/challenge", method: .post)
+      HTTPRequest(
+        url: configuration.url.appendingPathComponent("factors/\(params.factorId)/challenge"),
+        method: .post
+      )
     )
-    .decoded(decoder: configuration.decoder)
+    .decoded(decoder: decoder)
   }
 
   /// Verifies a code against a challenge. The verification code is
@@ -54,15 +53,16 @@ public actor AuthMFA {
   /// - Returns: An authentication response after verifying the factor.
   public func verify(params: MFAVerifyParams) async throws -> AuthMFAVerifyResponse {
     let response: AuthMFAVerifyResponse = try await api.authorizedExecute(
-      Request(
-        path: "/factors/\(params.factorId)/verify", method: .post,
-        body: configuration.encoder.encode(params)
+      HTTPRequest(
+        url: configuration.url.appendingPathComponent("factors/\(params.factorId)/verify"),
+        method: .post,
+        body: encoder.encode(params)
       )
-    ).decoded(decoder: configuration.decoder)
+    ).decoded(decoder: decoder)
 
     try await sessionManager.update(response)
 
-    eventEmitter.emit(.mfaChallengeVerified, session: response)
+    eventEmitter.emit(.mfaChallengeVerified, session: response, token: nil)
 
     return response
   }
@@ -75,9 +75,12 @@ public actor AuthMFA {
   @discardableResult
   public func unenroll(params: MFAUnenrollParams) async throws -> AuthMFAUnenrollResponse {
     try await api.authorizedExecute(
-      Request(path: "/factors/\(params.factorId)", method: .delete)
+      HTTPRequest(
+        url: configuration.url.appendingPathComponent("factors/\(params.factorId)"),
+        method: .delete
+      )
     )
-    .decoded(decoder: configuration.decoder)
+    .decoded(decoder: decoder)
   }
 
   /// Helper method which creates a challenge and immediately uses the given code to verify against
@@ -87,9 +90,9 @@ public actor AuthMFA {
   /// - Parameter params: The parameters for creating and verifying a challenge.
   /// - Returns: An authentication response after verifying the challenge.
   @discardableResult
-  public func challengeAndVerify(params: MFAChallengeAndVerifyParams) async throws
-    -> AuthMFAVerifyResponse
-  {
+  public func challengeAndVerify(
+    params: MFAChallengeAndVerifyParams
+  ) async throws -> AuthMFAVerifyResponse {
     let response = try await challenge(params: MFAChallengeParams(factorId: params.factorId))
     return try await verify(
       params: MFAVerifyParams(

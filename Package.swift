@@ -67,7 +67,10 @@ let package = Package(
       name: "FunctionsTests",
       dependencies: [
         "Functions",
+        "TestHelpers",
         .product(name: "ConcurrencyExtras", package: "swift-concurrency-extras"),
+        .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
+        .product(name: "XCTestDynamicOverlay", package: "xctest-dynamic-overlay"),
       ]
     ),
     .testTarget(
@@ -75,6 +78,7 @@ let package = Package(
       dependencies: [
         .product(name: "CustomDump", package: "swift-custom-dump"),
         .product(name: "XCTestDynamicOverlay", package: "xctest-dynamic-overlay"),
+        .product(name: "InlineSnapshotTesting", package: "swift-snapshot-testing"),
         "_Helpers",
         "Auth",
         "TestHelpers",
