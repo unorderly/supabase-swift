@@ -1045,7 +1045,7 @@ public final class AuthClient: Sendable {
 #if canImport(UIKit) && !os(watchOS)
     var backgroundTaskId: UIBackgroundTaskIdentifier = .invalid
     backgroundTaskId = await UIApplication.shared.beginBackgroundTask(withName: "authRefreshSession") { [weak self] in
-      self?.logger?.debug("Refresh session background task killed.")
+      Current.logger?.debug("Refresh session background task killed.")
       Task { @MainActor [backgroundTaskId] in
         UIApplication.shared.endBackgroundTask(backgroundTaskId)
       }
@@ -1064,7 +1064,7 @@ public final class AuthClient: Sendable {
         .refreshToken
     }
       
-    logger?.debug("Refresh called with: \(String(describing: refreshToken))")
+    Current.logger?.debug("Refresh called with: \(String(describing: refreshToken))")
 
     let session = try await api.execute(
       .init(
@@ -1075,7 +1075,7 @@ public final class AuthClient: Sendable {
       )
     ).decoded(as: Session.self, decoder: configuration.decoder)
 
-    logger?.debug("Session obtained, next refreshToken: \(session.refreshToken)")
+     Current.logger?.debug("Session obtained, next refreshToken: \(session.refreshToken)")
 
     if session.user.phoneConfirmedAt != nil || session.user.emailConfirmedAt != nil
       || session
@@ -1085,7 +1085,7 @@ public final class AuthClient: Sendable {
       eventEmitter.emit(.tokenRefreshed, session: session)
     }
 
-    logger?.debug("Session updated.")
+    Current.logger?.debug("Session updated.")
 
     return session
   }

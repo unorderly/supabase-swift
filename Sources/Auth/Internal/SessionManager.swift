@@ -16,8 +16,7 @@ actor SessionManager {
     Current.sessionRefresher
   }
 
-  func session(shouldValidateExpiration: Bool) async throws -> Session {
-
+  func session(shouldValidateExpiration: Bool = true) async throws -> Session {
     guard let currentSession = try storage.getSession() else {
       throw AuthError.sessionNotFound
     }
@@ -42,7 +41,6 @@ actor SessionManager {
   }
 
   func update(_ session: Session) throws {
-      logger?.debug("Updating session")
     try storage.storeSession(StoredSession(session: session))
   }
 

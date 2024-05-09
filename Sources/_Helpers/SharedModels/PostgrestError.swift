@@ -31,27 +31,3 @@ extension PostgrestError: LocalizedError {
     message
   }
 }
-
-public struct HTTPError: Error, Sendable {
-    public let response: HTTPURLResponse
-    public let data: Data
-
-    public var statusCode: Int {
-        response.statusCode
-    }
-
-    public init(response: HTTPURLResponse, data: Data) {
-        self.response = response
-        self.data = data
-    }
-}
-
-extension HTTPError: LocalizedError {
-    public var errorDescription: String? {
-        var message = "Status Code: \(self.statusCode)"
-        if let body = String(data: data, encoding: .utf8) {
-            message += " Body: \(body)"
-        }
-        return message
-    }
-}
